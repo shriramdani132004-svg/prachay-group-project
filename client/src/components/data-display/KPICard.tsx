@@ -6,6 +6,11 @@ interface KPICardProps {
   title: string
   value: string | number
   icon?: ReactNode
+  /**
+   * How to render a numeric value. Counters stay plain integers; only
+   * monetary KPIs should be formatted as currency.
+   */
+  format?: 'currency' | 'count'
   trend?: {
     value: number
     label?: string
@@ -15,8 +20,9 @@ interface KPICardProps {
   className?: string
 }
 
-export function KPICard({ title, value, icon, trend, loading, className }: KPICardProps) {
-  const displayValue = typeof value === 'number' ? formatCurrency(value) : value
+export function KPICard({ title, value, icon, format = 'currency', trend, loading, className }: KPICardProps) {
+  const displayValue =
+    typeof value === 'number' ? (format === 'currency' ? formatCurrency(value) : value.toLocaleString('en-IN')) : value
 
   return (
     <div className={cn('kpi-card', className)}>
@@ -26,7 +32,16 @@ export function KPICard({ title, value, icon, trend, loading, className }: KPICa
           {loading ? (
             <div className="skeleton h-10 w-3/4" />
           ) : (
-            <p className="text-display tabular-nums text-text-primary">{displayValue}</p>
+            <p
+              className={cn(
+                'tabular-nums text-text-primary',
+                // Currency strings are much wider than counts; use a smaller
+                // type size so they stay on one line at typical card widths.
+                format === 'currency' ? 'text-h1 break-words' : 'text-display'
+              )}
+            >
+              {displayValue}
+            </p>
           )}
         </div>
         {icon && (

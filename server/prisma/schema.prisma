@@ -1,0 +1,283 @@
+// ==============================================================================
+// PSPL Expense Voucher Management System - Prisma Schema
+// PostgreSQL + Prisma 7
+//
+// Design notes:
+// - Monetary values use Decimal (NUMERIC) - never floating point.
+// - Roles and voucher statuses are fixed database enums.
+// - Signature image BYTES live outside PostgreSQL; only metadata is stored here.
+// - Audit events are append-only and drive the voucher timeline.
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------------------------
+// Enums
+// ------------------------------------------------------------------------------
+
+enum UserRole {
+  EMPLOYEE
+  DIRECTOR
+  ACCOUNTS
+}
+
+enum VoucherStatus {
+  DRAFT
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum SignatureType {
+  EMPLOYEE
+  DIRECTOR
+}
+
+enum VoucherEventType {
+  CREATED
+  UPDATED
+  SUBMITTED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+// ------------------------------------------------------------------------------
+// Reference data
+// ------------------------------------------------------------------------------
+
+model Department {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique @db.VarChar(32)
+  name      String   @unique @db.VarChar(120)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  users    User[]
+  vouchers Voucher[]
+
+  @@map("departments")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid()) @db.Uuid
+  code      String   @unique @db.VarChar(32)
+  name      String   @unique @db.VarChar(120)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  vouchers Voucher[]
+
+  @@map("expense_categories")
+}
+
+// ------------------------------------------------------------------------------
+// Identity
+// ------------------------------------------------------------------------------
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+
+  fullName String   @db.VarChar(160)
+  /// Stored lower-cased and trimmed; uniqueness enforced by unique index.
+  email    String   @unique @db.VarChar(255)
+  role     UserRole
+
+  /// Optional: not every account type has an employee code.
+  employeeId String? @unique @db.VarChar(32)
+
+  departmentId String?     @db.Uuid
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  /// Provisioning accommodation for Phase 4. NULL means "not activated yet".
+  /// Never returned by API responses or written to logs.
+  passwordHash String? @db.VarChar(255)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  createdVouchers    Voucher[]      @relation("VoucherCreatedBy")
+  reviewedVouchers   Voucher[]      @relation("VoucherReviewedBy")
+  uploadedSignatures Signature[]
+  auditEvents        VoucherEvent[]
+  sessions           AuthSession[]
+
+  @@index([role], map: "idx_users_role")
+  @@index([departmentId], map: "idx_users_department")
+  @@map("users")
+}
+
+// ------------------------------------------------------------------------------
+// Revocable server-side sessions (Phase 4)
+// ------------------------------------------------------------------------------
+
+/// A JWT alone cannot be revoked before it expires, so every authenticated
+/// request is additionally checked against this row. Logging out sets
+/// `revokedAt`, which immediately invalidates a previously copied token.
+model AuthSession {
+  /// Unpredictable identifier referenced by the JWT `sid` claim.
+  id String @id @default(uuid()) @db.Uuid
+
+  userId String @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Session-bound CSRF synchronizer token, compared in constant time.
+  /// Randomly generated at login; never placed in a URL or browser storage.
+  csrfToken String @db.VarChar(128)
+
+  /// Absolute expiry. Mirrors the JWT lifetime so the two cannot disagree.
+  expiresAt DateTime @db.Timestamptz(3)
+
+  /// Set on logout. A non-null value rejects the token immediately.
+  revokedAt DateTime? @db.Timestamptz(3)
+
+  /// Coarse client metadata for audit only. No cookies, tokens or credentials.
+  userAgent String? @db.VarChar(255)
+  ipAddress String? @db.VarChar(45)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([userId], map: "idx_auth_sessions_user")
+  @@index([expiresAt], map: "idx_auth_sessions_expires")
+  @@index([revokedAt], map: "idx_auth_sessions_revoked")
+  @@map("auth_sessions")
+}
+
+// ------------------------------------------------------------------------------
+// Voucher
+// ------------------------------------------------------------------------------
+
+model Voucher {
+  id String @id @default(uuid()) @db.Uuid
+
+  /// Collision-safe, database-sequence generated (see migration SQL).
+  /// Format: VCH-<year>-<zero-padded sequence>, e.g. VCH-2026-000001
+  voucherNumber String @unique @db.VarChar(32)
+
+  voucherDate DateTime @db.Date
+  expenseDate DateTime @db.Date
+
+  departmentId String     @db.Uuid
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Restrict)
+
+  expenseTitle       String          @db.VarChar(160)
+  expenseCategoryId  String          @db.Uuid
+  expenseCategory    ExpenseCategory @relation(fields: [expenseCategoryId], references: [id], onDelete: Restrict)
+  expenseDescription String?         @db.Text
+
+  /// NUMERIC(12,2) - enforced positive by a CHECK constraint in the migration.
+  amount   Decimal @db.Decimal(12, 2)
+  currency String  @default("INR") @db.Char(3)
+
+  createdById String @db.Uuid
+  createdBy   User   @relation("VoucherCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  /// Historical snapshots, preserved so past vouchers stay readable even if
+  /// the owning user or department record is later renamed or deactivated.
+  employeeIdSnapshot   String? @db.VarChar(32)
+  employeeNameSnapshot String? @db.VarChar(160)
+
+  status VoucherStatus @default(DRAFT)
+
+  submittedAt DateTime? @db.Timestamptz(3)
+
+  reviewedById String?   @db.Uuid
+  reviewedBy   User?     @relation("VoucherReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  approvedAt   DateTime? @db.Timestamptz(3)
+  rejectedAt   DateTime? @db.Timestamptz(3)
+
+  rejectionReason String? @db.Text
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  signatures Signature[]
+  events     VoucherEvent[]
+
+  @@index([createdById], map: "idx_vouchers_created_by")
+  @@index([departmentId], map: "idx_vouchers_department")
+  @@index([expenseCategoryId], map: "idx_vouchers_category")
+  @@index([status], map: "idx_vouchers_status")
+  @@index([expenseDate], map: "idx_vouchers_expense_date")
+  @@index([createdAt], map: "idx_vouchers_created_at")
+  @@index([status, createdAt], map: "idx_vouchers_status_created_at")
+  @@index([createdById, status], map: "idx_vouchers_employee_status")
+  @@map("vouchers")
+}
+
+// ------------------------------------------------------------------------------
+// Signature vault metadata (bytes are stored on disk, never in PostgreSQL)
+// ------------------------------------------------------------------------------
+
+model Signature {
+  id String @id @default(uuid()) @db.Uuid
+
+  voucherId String  @db.Uuid
+  voucher   Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  type SignatureType
+
+  uploadedById String @db.Uuid
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  /// Opaque, server-generated relative key inside SIGNATURE_STORAGE_DIR.
+  /// Never a user-supplied filename. Never exposed to clients.
+  storageKey String @db.VarChar(255)
+
+  /// Detected from file magic bytes, not from the client-supplied MIME type.
+  mimeType  String @db.VarChar(100)
+  sizeBytes Int    @db.Integer
+
+  /// SHA-256 of the stored bytes, lowercase hex.
+  sha256 String @db.Char(64)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  // One current employee signature and one current director signature per voucher.
+  @@unique([voucherId, type], map: "uq_signature_voucher_type")
+  @@index([uploadedById], map: "idx_signatures_uploaded_by")
+  @@index([sha256], map: "idx_signatures_sha256")
+  @@map("signatures")
+}
+
+// ------------------------------------------------------------------------------
+// Append-only voucher timeline / audit trail
+// ------------------------------------------------------------------------------
+
+model VoucherEvent {
+  id String @id @default(uuid()) @db.Uuid
+
+  voucherId String  @db.Uuid
+  voucher   Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+
+  /// NULL for system-originated events (e.g. seed data).
+  actorId String? @db.Uuid
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  type VoucherEventType
+
+  fromStatus VoucherStatus?
+  toStatus   VoucherStatus?
+
+  /// Non-sensitive structured context only (e.g. { "reason": "..." }).
+  /// Never stores passwords, tokens, cookies or raw image bytes.
+  metadata Json?
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([voucherId, createdAt], map: "idx_voucher_events_timeline")
+  @@index([actorId], map: "idx_voucher_events_actor")
+  @@index([type], map: "idx_voucher_events_type")
+  @@map("voucher_events")
+}

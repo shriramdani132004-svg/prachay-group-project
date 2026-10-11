@@ -1,0 +1,51 @@
+# Hosting manifest for the PSPL Expense Voucher backend.
+#
+# Format targets Render.com's blueprints, but the shape (build command,
+# start command, health check, env var NAMES only) maps to any Node host.
+#
+# *** NO SECRETS ARE STORED HERE. ***
+# Every sensitive value below is a placeholder that the operator must fill in
+# through the hosting provider's environment/secret UI — never by editing this
+# file that lives in git. The server refuses to boot with placeholder secrets
+# (see server/src/config/env.ts).
+#
+# Deployment is currently BLOCKED: this manifest is prepared, but no hosting
+# account, managed database or persistent disk has been provisioned for this
+# project. See docs/DEPLOYMENT.md for the exact prerequisites.
+
+services:
+  - type: web
+    name: pspl-voucher-api
+    runtime: node
+    rootDir: server
+    plan: free # adjust to your plan
+    buildCommand: npm ci && npm run build && npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /api/v1/health/ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      # --- Secrets: create these in the provider's UI, do NOT commit values ---
+      - key: DATABASE_URL # managed PostgreSQL connection string (sync: false)
+        sync: false
+      - key: JWT_SECRET # fresh >= 64-byte random secret (sync: false)
+        sync: false
+      - key: CORS_ORIGINS # exact frontend origin(s), comma-separated
+        sync: false
+      # --- Tunables with safe defaults -------------------------------------
+      - key: TRUST_PROXY_HOPS
+        value: 1 # set to your proxy hop count; 0 if directly exposed
+      - key: SIGNATURE_STORAGE_DIR
+        value: /var/data/signatures # MUST be on a persistent disk
+      - key: LOG_LEVEL
+        value: info
+      # --- Explicitly disabled in production --------------------------------
+      - key: DEMO_AUTH_ENABLED
+        value: "false"
+
+# Persistent disk requirement:
+# Attach a persistent disk (or object-storage mount) at SIGNATURE_STORAGE_DIR.
+# The local signature vault writes files under that path; without a durable
+# volume, signatures would be lost on every redeploy.

@@ -168,7 +168,7 @@ export function Pagination({
             <ChevronUp className="h-4 w-4" />
           </button>
 
-          {visiblePages.map((page, index) => (
+          {visiblePages.map((page) => (
             <button
               key={page}
               onClick={() => onPageChange(page)}

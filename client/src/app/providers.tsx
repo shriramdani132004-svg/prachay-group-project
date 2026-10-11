@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { DemoAuthProvider } from '@/hooks/useDemoAuth'
+import { AuthProvider } from '@/hooks/useAuth'
 import { ToastProvider } from '@/components/feedback/Toast'
 import type { ReactNode } from 'react'
 
@@ -16,11 +16,9 @@ const queryClient = new QueryClient({
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <DemoAuthProvider>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
-      </DemoAuthProvider>
+      <AuthProvider>
+        <ToastProvider>{children}</ToastProvider>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

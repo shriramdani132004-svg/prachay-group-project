@@ -1,8 +1,75 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@theme {
+  --color-bg-base: #0A0E17;
+  --color-bg-surface: #111827;
+  --color-bg-elevated: #1E293B;
+  --color-border-subtle: #1E293B;
+  --color-border-focus: #6366F1;
+  --color-primary: #6366F1;
+  --color-primary-hover: #4F46E5;
+  --color-accent-cyan: #06B6D4;
+  --color-accent-violet: #8B5CF6;
+  --color-status-draft: #64748B;
+  --color-status-submitted: #3B82F6;
+  --color-status-pending: #F59E0B;
+  --color-status-approved: #10B981;
+  --color-status-rejected: #EF4444;
+  --color-text-primary: #F8FAFC;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  --text-display: 2.25rem;
+  --text-display--line-height: 1.1;
+  --text-display--font-weight: 700;
+  --text-h1: 1.75rem;
+  --text-h1--line-height: 1.2;
+  --text-h1--font-weight: 600;
+  --text-h2: 1.25rem;
+  --text-h2--line-height: 1.3;
+  --text-h2--font-weight: 500;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.6;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.5;
+  --text-caption--font-weight: 400;
+
+  --radius-card: 0.75rem;
+  --radius-button: 0.5rem;
+  --radius-input: 0.375rem;
+
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --shadow-card-hover: 0 10px 25px -5px rgb(0 0 0 / 0.4), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+  --shadow-primary: 0 4px 14px 0 rgb(99 102 241 / 0.3);
+  --shadow-focus: 0 0 0 2px #6366F1;
+
+  --animate-fade-in: fadeIn 150ms ease-out;
+  --animate-slide-up: slideUp 150ms ease-out;
+  --animate-scale-in: scaleIn 150ms ease-out;
+  --animate-skeleton: skeleton 1.5s ease-in-out infinite;
+
+  @keyframes fadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
+  }
+  @keyframes slideUp {
+    0% { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleIn {
+    0% { opacity: 0; transform: scale(0.98); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes skeleton {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+}
 
 @layer base {
   * {
@@ -10,7 +77,7 @@
   }
 
   html {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: var(--font-family-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -19,12 +86,12 @@
   body {
     margin: 0;
     min-height: 100vh;
-    background-color: #0A0E17;
-    color: #F8FAFC;
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
   }
 
   ::selection {
-    background-color: #6366F1;
+    background-color: var(--color-primary);
     color: #FFFFFF;
   }
 
@@ -34,7 +101,7 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #111827;
+    background: var(--color-bg-surface);
   }
 
   ::-webkit-scrollbar-thumb {
@@ -47,7 +114,7 @@
   }
 
   ::-webkit-scrollbar-corner {
-    background: #111827;
+    background: var(--color-bg-surface);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -62,164 +129,399 @@
   }
 
   :focus-visible {
-    outline: 2px solid #6366F1;
+    outline: 2px solid var(--color-border-focus);
     outline-offset: 2px;
   }
 }
 
-@layer components {
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 font-medium rounded-button transition-all duration-fast ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-base disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98];
-  }
+/* Component Classes - defined as regular CSS classes instead of @apply */
 
-  .btn-primary {
-    @apply btn bg-primary text-white px-4 py-2.5 shadow-primary hover:bg-primary-hover;
-  }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  border-radius: var(--radius-button);
+  transition: all 150ms ease-out;
+}
 
-  .btn-secondary {
-    @apply btn bg-slate-800 text-slate-200 border border-slate-700 px-4 py-2.5 hover:bg-slate-700;
-  }
+.btn:focus-visible {
+  outline: none;
+  ring: 2px;
+  ring-color: var(--color-primary);
+  ring-offset: 2px;
+  ring-offset-color: var(--color-bg-base);
+}
 
-  .btn-outline {
-    @apply btn border-2 border-primary text-primary px-4 py-2.5 hover:bg-primary/10;
-  }
+.btn:disabled,
+.btn:disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-  .btn-ghost {
-    @apply btn text-slate-400 px-3 py-2 hover:bg-slate-800 hover:text-white;
-  }
+.btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
 
-  .btn-destructive {
-    @apply btn bg-red-600/10 text-red-400 border border-red-500/30 px-4 py-2.5 hover:bg-red-600/20 hover:text-red-300;
-  }
+.btn-primary {
+  background-color: var(--color-primary);
+  color: white;
+  padding: 0.625rem 1rem;
+  box-shadow: var(--shadow-primary);
+}
 
-  .btn-icon {
-    @apply btn p-2;
-  }
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
 
-  .card {
-    @apply bg-bg-surface border border-border-subtle rounded-card shadow-card transition-all duration-normal;
-  }
+.btn-secondary {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  padding: 0.625rem 1rem;
+}
 
-  .card-hover {
-    @apply card hover:shadow-card-hover hover:border-border-focus/50;
-  }
+.btn-secondary:hover {
+  background-color: #334155;
+}
 
-  .card-elevated {
-    @apply bg-bg-elevated border border-border-subtle rounded-card shadow-card-hover;
-  }
+.btn-outline {
+  border: 2px solid var(--color-primary);
+  color: var(--color-primary);
+  padding: 0.625rem 1rem;
+  background-color: transparent;
+}
 
-  .input {
-    @apply w-full bg-bg-base border border-border-subtle rounded-input px-3 py-2.5 text-text-primary placeholder-text-muted transition-all duration-fast focus:border-border-focus focus:ring-2 focus:ring-primary/20 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed;
-  }
+.btn-outline:hover {
+  background-color: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
 
-  .input-error {
-    @apply border-red-500/50 focus:border-red-500 focus:ring-red-500/20;
-  }
+.btn-ghost {
+  color: #94a3b8;
+  padding: 0.5rem 0.75rem;
+  background-color: transparent;
+}
 
-  .label {
-    @apply block text-caption text-text-secondary mb-1.5 font-medium;
-  }
+.btn-ghost:hover {
+  background-color: #1e293b;
+  color: white;
+}
 
-  .help-text {
-    @apply text-caption text-text-muted mt-1;
-  }
+.btn-destructive {
+  background-color: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 0.625rem 1rem;
+}
 
-  .error-text {
-    @apply text-caption text-red-400 mt-1 flex items-center gap-1;
-  }
+.btn-destructive:hover {
+  background-color: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
 
-  .badge {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium;
-  }
+.btn-icon {
+  padding: 0.5rem;
+}
 
-  .badge-draft {
-    @apply badge bg-slate-800/80 text-slate-300 border border-slate-700;
-  }
+.card {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  transition: all 200ms ease-out;
+}
 
-  .badge-submitted {
-    @apply badge bg-blue-950/80 text-blue-300 border border-blue-800;
-  }
+.card-hover {
+  box-shadow: var(--shadow-card);
+}
 
-  .badge-pending {
-    @apply badge bg-amber-950/80 text-amber-300 border border-amber-800;
-  }
+.card-hover:hover {
+  box-shadow: var(--shadow-card-hover);
+  border-color: color-mix(in srgb, var(--color-border-focus) 50%, transparent);
+}
 
-  .badge-approved {
-    @apply badge bg-emerald-950/80 text-emerald-300 border border-emerald-800;
-  }
+.card-elevated {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card-hover);
+}
 
-  .badge-rejected {
-    @apply badge bg-rose-950/80 text-rose-300 border border-rose-800;
-  }
+.input {
+  width: 100%;
+  background-color: var(--color-bg-base);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-input);
+  padding: 0.625rem 0.75rem;
+  color: var(--color-text-primary);
+  transition: all 150ms ease-out;
+}
 
-  .kpi-card {
-    @apply card p-5 hover:shadow-card-hover transition-all duration-normal;
-  }
+.input::placeholder {
+  color: var(--color-text-muted);
+}
 
-  .table-container {
-    @apply overflow-x-auto rounded-card border border-border-subtle;
-  }
+.input:focus {
+  border-color: var(--color-border-focus);
+  outline: none;
+  ring: 2px;
+  ring-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
 
-  .table {
-    @apply w-full text-sm;
-  }
+.input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-  .table th {
-    @apply px-4 py-3 text-left text-caption text-text-muted font-medium uppercase tracking-wider bg-bg-base border-b border-border-subtle;
-  }
+.input-error {
+  border-color: rgba(239, 68, 68, 0.5);
+}
 
-  .table td {
-    @apply px-4 py-3 border-b border-border-subtle/50 text-text-primary;
-  }
+.input-error:focus {
+  border-color: #ef4444;
+  ring-color: rgba(239, 68, 68, 0.2);
+}
 
-  .table tbody tr {
-    @apply transition-colors duration-fast hover:bg-bg-elevated/50;
-  }
+.label {
+  display: block;
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+  margin-bottom: 0.375rem;
+  font-weight: 500;
+}
 
-  .table tbody tr:last-child td {
-    @apply border-b-0;
-  }
+.help-text {
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
 
-  .skeleton {
-    @apply animate-skeleton bg-gradient-to-r from-slate-800 via-slate-700 to-slate-800 bg-[length:200%_100%] rounded;
-  }
+.error-text {
+  font-size: var(--text-caption);
+  color: #f87171;
+  margin-top: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
 
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-draft {
+  background-color: rgba(100, 116, 139, 0.8);
+  color: #cbd5e1;
+  border: 1px solid #334155;
+}
+
+.badge-submitted {
+  background-color: rgba(59, 130, 246, 0.8);
+  color: #93c5fd;
+  border: 1px solid #2563eb;
+}
+
+.badge-pending {
+  background-color: rgba(245, 158, 11, 0.8);
+  color: #fde047;
+  border: 1px solid #d97706;
+}
+
+.badge-approved {
+  background-color: rgba(16, 185, 129, 0.8);
+  color: #86efac;
+  border: 1px solid #059669;
+}
+
+.badge-rejected {
+  background-color: rgba(239, 68, 68, 0.8);
+  color: #fca5a5;
+  border: 1px solid #dc2626;
+}
+
+.kpi-card {
+  background-color: var(--color-bg-surface);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  transition: all 200ms ease-out;
+  padding: 1.25rem;
+}
+
+.kpi-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.table-container {
+  overflow-x: auto;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-border-subtle);
+}
+
+.table {
+  width: 100%;
+  font-size: 0.875rem;
+}
+
+.table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: var(--text-caption);
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background-color: var(--color-bg-base);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-subtle) 50%, transparent);
+  color: var(--color-text-primary);
+}
+
+.table tbody tr {
+  transition: background-color 150ms ease-out;
+}
+
+.table tbody tr:hover {
+  background-color: color-mix(in srgb, var(--color-bg-elevated) 50%, transparent);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.skeleton {
+  animation: skeleton 1.5s ease-in-out infinite;
+  background: linear-gradient(90deg, #1e293b, #334155, #1e293b);
+  background-size: 200% 100%;
+  border-radius: var(--radius-input);
+}
+
+.page-container {
+  padding: 1.5rem 2rem;
+}
+
+@media (min-width: 1024px) {
   .page-container {
-    @apply p-6 lg:p-8;
-  }
-
-  .page-header {
-    @apply mb-6 lg:mb-8;
-  }
-
-  .page-title {
-    @apply text-h1 text-text-primary mb-1;
-  }
-
-  .page-description {
-    @apply text-body text-text-secondary;
-  }
-
-  .section-header {
-    @apply flex items-center justify-between mb-4;
-  }
-
-  .section-title {
-    @apply text-h2 text-text-primary;
+    padding: 2rem;
   }
 }
 
-@layer utilities {
-  .tabular-nums {
-    font-variant-numeric: tabular-nums;
-    font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+.page-header {
+  margin-bottom: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .page-header {
+    margin-bottom: 2rem;
+  }
+}
+
+.page-title {
+  font-size: var(--text-h1);
+  color: var(--color-text-primary);
+  margin-bottom: 0.25rem;
+}
+
+.page-description {
+  font-size: var(--text-body);
+  color: var(--color-text-secondary);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.section-title {
+  font-size: var(--text-h2);
+  color: var(--color-text-primary);
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-family-mono);
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.glass {
+  background-color: color-mix(in srgb, var(--color-bg-surface) 60%, transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid color-mix(in srgb, var(--color-border-subtle) 80%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+ * Print layout (Phase 8).
+ *
+ * The print view is the voucher document itself: navigation, toolbars, buttons
+ * and dialogs are removed, text is forced legible black-on-white regardless of
+ * the on-screen theme, and signature blocks avoid page breaks.
+ * ------------------------------------------------------------------------ */
+
+@media print {
+  /* Remove the application chrome entirely. */
+  aside,
+  nav,
+  header:not(.print-document-header),
+  footer,
+  [data-print="hide"],
+  button,
+  .no-print {
+    display: none !important;
   }
 
-  .text-balance {
-    text-wrap: balance;
+  /* Force readable black-on-white regardless of the UI theme. */
+  body,
+  .print-document,
+  .print-document * {
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
   }
 
-  .glass {
-    @apply bg-bg-surface/60 backdrop-blur-card border border-border-subtle/80;
+  .print-document {
+    position: static;
+    inset: auto;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+
+  /* Keep tables and signature rows intact across pages where practical. */
+  .print-avoid-break {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .print-signature-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-top: 2rem;
+  }
+
+  a[href]::after {
+    content: '';
+  }
+
+  @page {
+    margin: 18mm 16mm;
   }
 }

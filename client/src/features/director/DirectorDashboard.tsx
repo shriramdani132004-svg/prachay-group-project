@@ -1,133 +1,204 @@
 import { Link } from 'react-router-dom'
-import { Clock, CheckCircle, XCircle, DollarSign, TrendingUp, FileText, ArrowRight } from 'lucide-react'
-import { formatCurrency } from '@/lib/utils'
+import {
+  Clock,
+  CheckCircle,
+  XCircle,
+  IndianRupee,
+  Inbox,
+  Activity,
+  FileText,
+} from 'lucide-react'
+import { formatCurrency, formatDateTime } from '@/lib/utils'
 import { KPICard } from '@/components/data-display/KPICard'
 import { Card } from '@/components/common/Card'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/data-display/Table'
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from '@/components/data-display/Table'
 import { Badge } from '@/components/common/Badge'
 import { Button } from '@/components/common/Button'
 import { PageHeader } from '@/components/layout/TopNav'
-import { Skeleton } from '@/components/feedback/Skeleton'
-import { getDashboardKPIs, demoVouchers } from '@/data/demo-data'
-import { useDemoAuth } from '@/hooks/useDemoAuth'
-import { cn } from '@/lib/utils'
+import { TableSkeleton } from '@/components/feedback/Skeleton'
+import { EmptyState } from '@/components/feedback/EmptyState'
+import { useDirectorDashboard } from '@/hooks/useVouchers'
+import { useToast } from '@/components/feedback/Toast'
+import { useEffect } from 'react'
+import type { ApiVoucherStatus } from '@/lib/api'
 
+/**
+ * Director Dashboard (Phase 6/7).
+ *
+ * Every figure is an organization-wide server aggregate: pending count and
+ * pending amount come from the database, "today" counts use the server's day
+ * boundary, and recent activity is the real voucher-event stream.
+ */
 export function DirectorDashboard() {
-  const { user } = useDemoAuth()
-  const kpis = getDashboardKPIs('DIRECTOR')
-  const pendingVouchers = demoVouchers.filter((v) => v.status === 'SUBMITTED' || v.status === 'PENDING_APPROVAL').slice(0, 5)
+  const { data, isLoading, isError, error, refetch } = useDirectorDashboard()
+  const { toast } = useToast()
+
+  useEffect(() => {
+    if (isError) {
+      toast({
+        type: 'error',
+        title: 'Dashboard unavailable',
+        message: error instanceof Error ? error.message : 'Please try again.',
+      })
+    }
+  }, [isError, error, toast])
 
   return (
     <div className="page-container animate-fade-in">
       <PageHeader
         title="Director Dashboard"
-        description={`Welcome, ${user.fullName.split(' ')[0]}. Review pending approvals and monitor organizational spending.`}
+        description="Organization-wide approval pipeline and decision activity"
+        actions={
+          <Link to="/director/approvals">
+            <Button variant="primary">
+              <Inbox className="h-4 w-4 mr-2" />
+              Approval Queue
+            </Button>
+          </Link>
+        }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-        <KPICard
-          title="Pending Approvals"
-          value={kpis.pendingApprovalCount || 0}
-          icon={<Clock className="h-6 w-6" />}
-          trend={{ value: 15, positive: false }}
-        />
-        <KPICard
-          title="Approved Today"
-          value={kpis.approvedToday || 0}
-          icon={<CheckCircle className="h-6 w-6" />}
-          trend={{ value: 8, positive: true }}
-        />
-        <KPICard
-          title="Rejected Today"
-          value={kpis.rejectedToday || 0}
-          icon={<XCircle className="h-6 w-6" />}
-          trend={{ value: 2, positive: false }}
-        />
-        <KPICard
-          title="Total Pending Amount"
-          value={kpis.totalPendingAmount || 0}
-          icon={<DollarSign className="h-6 w-6" />}
-          trend={{ value: 12, positive: false }}
-        />
-        <KPICard
-          title="Total Vouchers"
-          value={kpis.totalVouchers}
-          icon={<FileText className="h-6 w-6" />}
-          trend={{ value: 5, positive: true }}
-        />
-      </div>
+      {isLoading ? (
+        <div className="mb-8">
+          <TableSkeleton rows={1} columns={4} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <KPICard
+            title="Pending Approval"
+            value={data?.pendingApprovalCount ?? 0}
+            format="count"
+            icon={<Clock className="h-6 w-6" />}
+          />
+          <KPICard
+            title="Pending Amount"
+            value={Number(data?.totalPendingAmount ?? 0)}
+            icon={<IndianRupee className="h-6 w-6" />}
+          />
+          <KPICard
+            title="Approved Today"
+            value={data?.approvedToday ?? 0}
+            format="count"
+            icon={<CheckCircle className="h-6 w-6" />}
+          />
+          <KPICard
+            title="Rejected Today"
+            value={data?.rejectedToday ?? 0}
+            format="count"
+            icon={<XCircle className="h-6 w-6" />}
+          />
+        </div>
+      )}
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-h2 text-text-primary">Urgent Action Queue</h3>
-            <Link to="/director/approvals">
-              <Button variant="ghost" size="sm">View All</Button>
-            </Link>
-          </div>
-          {pendingVouchers.length === 0 ? (
-            <div className="text-center py-8">
-              <Clock className="h-12 w-12 mx-auto text-text-muted mb-4" />
-              <p className="text-body text-text-secondary">No pending approvals</p>
-              <p className="text-caption text-text-muted">All caught up!</p>
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2">
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-h2 text-text-primary">Awaiting Decision</h3>
+              <Link to="/director/approvals">
+                <Button variant="ghost" size="sm">
+                  View All
+                </Button>
+              </Link>
             </div>
-          ) : (
+            {isLoading ? (
+              <TableSkeleton rows={5} columns={5} />
+            ) : (data?.recentVouchers ?? []).length === 0 ? (
+              <EmptyState
+                icon={<CheckCircle className="h-8 w-8 text-success" />}
+                title="All caught up"
+                description="No vouchers are waiting for your decision."
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Voucher #</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Employee</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-20">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(data?.recentVouchers ?? [])
+                    .filter((v) => v.status === 'PENDING_APPROVAL' || v.status === 'SUBMITTED')
+                    .map((voucher) => (
+                      <TableRow key={voucher.id}>
+                        <TableCell className="font-mono font-medium">
+                          {voucher.voucherNumber}
+                        </TableCell>
+                        <TableCell className="font-medium text-text-primary">
+                          {voucher.expenseTitle}
+                        </TableCell>
+                        <TableCell className="text-text-secondary">
+                          {voucher.createdByName ?? '—'}
+                        </TableCell>
+                        <TableCell className="text-right font-mono tabular-nums">
+                          {formatCurrency(Number(voucher.amount))}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={voucher.status.toLowerCase() as Lowercase<ApiVoucherStatus>}
+                          >
+                            {voucher.status.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Link to={`/director/vouchers/${voucher.id}`}>
+                            <Button variant="ghost" size="sm">
+                              Review
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            )}
+          </Card>
+        </div>
+
+        <Card>
+          <div className="flex items-center gap-2 mb-4">
+            <Activity className="h-5 w-5 text-primary" aria-hidden />
+            <h3 className="text-h2 text-text-primary">Recent Activity</h3>
+          </div>
+          {isLoading ? (
             <div className="space-y-3">
-              {pendingVouchers.map((voucher) => (
-                <Link key={voucher.id} to={`/director/vouchers/${voucher.id}`} className="block">
-                  <div className={cn('card-hover p-4 flex items-center justify-between')}>
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                        <Clock className="h-5 w-5 text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-text-primary">{voucher.expenseTitle}</p>
-                        <p className="text-caption text-text-muted">{voucher.employee?.fullName} • {voucher.department}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-mono tabular-nums font-medium text-text-primary">{formatCurrency(voucher.amount)}</p>
-                      <Badge variant={voucher.status.toLowerCase() as any} className="mt-1">
-                        {voucher.status.replace('_', ' ')}
-                      </Badge>
-                    </div>
-                  </div>
-                </Link>
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-12 rounded-input bg-bg-subtle animate-pulse" />
               ))}
             </div>
-          )}
-        </Card>
-
-        <Card>
-          <h3 className="text-h2 text-text-primary mb-4">Recent Activity</h3>
-          <div className="space-y-3">
-            {[
-              { action: 'Approved', voucher: 'VCH-20261001-0001', employee: 'Rajesh Kumar', amount: 45000, time: '2 hours ago', type: 'approved' },
-              { action: 'Submitted', voucher: 'VCH-20261003-0002', employee: 'Priya Sharma', amount: 125000, time: '4 hours ago', type: 'submitted' },
-              { action: 'Rejected', voucher: 'VCH-20261005-0003', employee: 'Arun Patel', amount: 75000, time: '1 day ago', type: 'rejected' },
-              { action: 'Approved', voucher: 'VCH-20261009-0006', employee: 'Arun Patel', amount: 210000, time: '2 days ago', type: 'approved' },
-            ].map((activity, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-bg-base rounded-button hover:bg-border-subtle/50 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center',
-                    activity.type === 'approved' && 'bg-emerald-500/10 text-emerald-400',
-                    activity.type === 'rejected' && 'bg-rose-500/10 text-rose-400',
-                    activity.type === 'submitted' && 'bg-blue-500/10 text-blue-400'
-                  )}>
-                    {activity.type === 'approved' && <CheckCircle className="h-4 w-4" />}
-                    {activity.type === 'rejected' && <XCircle className="h-4 w-4" />}
-                    {activity.type === 'submitted' && <FileText className="h-4 w-4" />}
-                  </div>
+          ) : (data?.recentActivity ?? []).length === 0 ? (
+            <p className="text-body text-text-muted">No workflow events yet.</p>
+          ) : (
+            <ul className="space-y-3" data-testid="director-activity">
+              {(data?.recentActivity ?? []).map((event) => (
+                <li key={event.id} className="flex items-start gap-3 text-caption">
+                  <FileText className="h-4 w-4 mt-0.5 text-text-muted flex-shrink-0" aria-hidden />
                   <div>
-                    <p className="font-medium text-text-primary">{activity.action} <span className="font-mono">{activity.voucher}</span></p>
-                    <p className="text-caption text-text-muted">{activity.employee} • {formatCurrency(activity.amount)}</p>
+                    <p className="text-text-primary">
+                      <span className="font-medium">{event.type.replace('_', ' ')}</span>
+                      {event.actorName ? ` by ${event.actorName}` : ''}
+                    </p>
+                    <p className="font-mono text-text-muted">
+                      {event.voucherNumber} · {formatDateTime(event.createdAt)}
+                    </p>
+                    {event.reason && <p className="text-text-muted italic">“{event.reason}”</p>}
                   </div>
-                </div>
-                <span className="text-caption text-text-muted">{activity.time}</span>
-              </div>
-            ))}
-          </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
     </div>

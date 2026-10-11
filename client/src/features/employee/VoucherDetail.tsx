@@ -1,56 +1,156 @@
-import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Clock, CheckCircle, XCircle, FileText, User, Building2, Calendar, DollarSign, AlertTriangle, Shield } from 'lucide-react'
-import { formatCurrency, formatDate, formatDateTime } from '@/lib/utils'
-import { Card } from '@/components/common/Card'
-import { Badge } from '@/components/common/Badge'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Pencil, Send, ArrowLeft, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/common/Button'
+import { Card } from '@/components/common/Card'
 import { PageHeader } from '@/components/layout/TopNav'
-import { demoVouchers } from '@/data/demo-data'
-import { useDemoAuth } from '@/hooks/useDemoAuth'
-import { cn } from '@/lib/utils'
+import { Skeleton } from '@/components/feedback/Skeleton'
+import { useToast } from '@/components/feedback/Toast'
+import { VoucherDocument } from '@/components/documents/VoucherDocument'
+import {
+  useVoucher,
+  useVoucherEvents,
+  useSubmitVoucher,
+  useUploadSignature,
+} from '@/hooks/useVouchers'
+import { ApiRequestError } from '@/lib/api'
+import { useRef } from 'react'
 
+/**
+ * Employee voucher detail (Phases 5/8).
+ *
+ * Renders the persisted document via the shared VoucherDocument and offers
+ * role-legal actions only: DRAFT → edit, delete-free submit (with signature).
+ * Submitted/approved/rejected vouchers are read-only here.
+ */
 export function VoucherDetail() {
   const { id } = useParams<{ id: string }>()
-  const { user } = useDemoAuth()
-  const voucher = demoVouchers.find((v) => v.id === id)
+  const navigate = useNavigate()
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  if (!voucher) {
+  const { data: voucher, isLoading, isError, refetch } = useVoucher(id)
+  const { data: events } = useVoucherEvents(id)
+  const submitMutation = useSubmitVoucher()
+  const uploadMutation = useUploadSignature()
+
+  if (isLoading) {
     return (
-      <div className="page-container animate-fade-in">
-        <PageHeader title="Voucher Not Found" description="The requested voucher does not exist." />
+      <div className="page-container space-y-4">
+        <Skeleton variant="text" width="280px" height="32px" />
+        <Skeleton variant="rectangular" height="380px" />
       </div>
     )
   }
 
-  const statusConfig = {
-    DRAFT: { icon: FileText, color: 'badge-draft', label: 'Draft' },
-    SUBMITTED: { icon: Clock, color: 'badge-submitted', label: 'Submitted' },
-    PENDING_APPROVAL: { icon: Clock, color: 'badge-pending', label: 'Pending Approval' },
-    APPROVED: { icon: CheckCircle, color: 'badge-approved', label: 'Approved' },
-    REJECTED: { icon: XCircle, color: 'badge-rejected', label: 'Rejected' },
+  if (isError || !voucher) {
+    return (
+      <div className="page-container">
+        <Card className="text-center py-12">
+          <AlertCircle className="h-8 w-8 mx-auto text-error mb-3" aria-hidden />
+          <h2 className="text-h2 text-text-primary mb-2">Voucher not found</h2>
+          <p className="text-body text-text-secondary mb-4">
+            It may have been deleted, or you may not have access.
+          </p>
+          <Button variant="secondary" onClick={() => void refetch()}>
+            Retry
+          </Button>
+        </Card>
+      </div>
+    )
   }
 
-  const currentStatus = statusConfig[voucher.status as keyof typeof statusConfig]
-  const StatusIcon = currentStatus.icon
+  const isDraft = voucher.status === 'DRAFT'
+  const hasEmployeeSignature = voucher.signatures.some((s) => s.type === 'EMPLOYEE')
 
-  const timelineSteps = [
-    { key: 'DRAFT', label: 'Created (Draft)', date: voucher.createdAt, completed: true },
-    { key: 'SUBMITTED', label: 'Submitted', date: voucher.submittedAt, completed: ['SUBMITTED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'].includes(voucher.status) },
-    { key: 'PENDING_APPROVAL', label: 'Pending Approval', date: voucher.submittedAt, completed: ['PENDING_APPROVAL', 'APPROVED', 'REJECTED'].includes(voucher.status) },
-    { key: 'APPROVED', label: 'Approved', date: voucher.approvedAt, completed: voucher.status === 'APPROVED' },
-    { key: 'REJECTED', label: 'Rejected', date: voucher.rejectedAt, completed: voucher.status === 'REJECTED' },
-  ]
+  const handleUploadClick = () => fileInputRef.current?.click()
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !id) return
+    try {
+      await uploadMutation.mutateAsync({ voucherId: id, file })
+      toast({ type: 'success', title: 'Signature uploaded' })
+    } catch (error) {
+      toast({
+        type: 'error',
+        title: 'Upload failed',
+        message: error instanceof Error ? error.message : undefined,
+      })
+    } finally {
+      e.target.value = ''
+    }
+  }
+
+  const handleSubmit = async () => {
+    if (!id) return
+    if (!hasEmployeeSignature) {
+      toast({
+        type: 'error',
+        title: 'Signature required',
+        message: 'Upload your signature before submitting.',
+      })
+      return
+    }
+    try {
+      await submitMutation.mutateAsync(id)
+      toast({ type: 'success', title: 'Submitted for approval' })
+    } catch (error) {
+      toast({
+        type: 'error',
+        title: 'Submit failed',
+        message: error instanceof ApiRequestError ? error.message : undefined,
+      })
+    }
+  }
+
+  const actions = isDraft ? (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onChange={handleFileChange}
+        aria-hidden
+        tabIndex={-1}
+      />
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={handleUploadClick}
+        disabled={uploadMutation.isPending}
+        data-testid="upload-employee-signature"
+      >
+        {uploadMutation.isPending
+          ? 'Uploading…'
+          : hasEmployeeSignature
+            ? 'Replace Signature'
+            : 'Upload Signature'}
+      </Button>
+      <Link to={`/employee/vouchers/${voucher.id}/edit`}>
+        <Button variant="ghost" size="sm">
+          <Pencil className="h-4 w-4 mr-1" />
+          Edit
+        </Button>
+      </Link>
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={handleSubmit}
+        disabled={submitMutation.isPending || !hasEmployeeSignature}
+        data-testid="submit-voucher"
+      >
+        <Send className="h-4 w-4 mr-1" />
+        {submitMutation.isPending ? 'Submitting…' : 'Submit'}
+      </Button>
+    </>
+  ) : null
 
   return (
     <div className="page-container animate-fade-in">
       <PageHeader
-        title="Voucher Details"
-        description={voucher.voucherNumber}
-        breadcrumbs={[
-          { label: 'Dashboard', path: '/employee' },
-          { label: 'My Vouchers', path: '/employee/vouchers' },
-          { label: voucher.voucherNumber },
-        ]}
+        title={voucher.expenseTitle}
+        description={`Voucher ${voucher.voucherNumber}`}
         actions={
           <Link to="/employee/vouchers">
             <Button variant="ghost">
@@ -61,201 +161,27 @@ export function VoucherDetail() {
         }
       />
 
-      {voucher.status === 'REJECTED' && voucher.rejectionReason && (
-        <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/30 rounded-card animate-slide-up" role="alert">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-rose-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-body font-medium text-rose-400">Voucher Rejected</p>
-              <p className="text-body text-text-secondary mt-1">{voucher.rejectionReason}</p>
-              {voucher.rejectedAt && (
-                <p className="text-caption text-text-muted mt-2">
-                  Rejected on {formatDateTime(voucher.rejectedAt)} by {voucher.director?.fullName || 'Director'}
-                </p>
-              )}
-            </div>
-          </div>
+      {!hasEmployeeSignature && isDraft && (
+        <div className="mb-4 p-3 bg-warning/10 border border-warning/30 rounded-input flex items-center gap-2 text-caption text-warning">
+          <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden />
+          No employee signature is attached yet. Upload one to enable submission.
         </div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <Card>
-            <h3 className="text-h2 text-text-primary mb-4 flex items-center gap-2">
-              <StatusIcon className="h-5 w-5" />
-              Voucher Information
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-caption text-text-muted">Voucher Number</p>
-                <p className="font-mono font-medium text-text-primary">{voucher.voucherNumber}</p>
-              </div>
-              <div>
-                <p className="text-caption text-text-muted">Voucher Date</p>
-                <p className="font-mono text-text-primary">{formatDate(voucher.voucherDate)}</p>
-              </div>
-              <div>
-                <p className="text-caption text-text-muted">Expense Date</p>
-                <p className="text-text-primary">{formatDate(voucher.expenseDate)}</p>
-              </div>
-              <div>
-                <p className="text-caption text-text-muted">Department</p>
-                <p className="text-text-primary">{voucher.department}</p>
-              </div>
-              <div>
-                <p className="text-caption text-text-muted">Expense Title</p>
-                <p className="font-medium text-text-primary">{voucher.expenseTitle}</p>
-              </div>
-              <div>
-                <p className="text-caption text-text-muted">Expense Category</p>
-                <p className="text-text-primary">{voucher.expenseCategory}</p>
-              </div>
-              <div className="md:col-span-2">
-                <p className="text-caption text-text-muted">Expense Description</p>
-                <p className="text-text-primary whitespace-pre-wrap">{voucher.expenseDescription || 'No description provided'}</p>
-              </div>
-            </div>
-          </Card>
+      <VoucherDocument voucher={voucher} events={events} actions={actions} />
 
-          <Card>
-            <h3 className="text-h2 text-text-primary mb-4 flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Financial Details
-            </h3>
-            <div className="flex items-baseline gap-4">
-              <span className="text-display tabular-nums font-bold text-text-primary">{formatCurrency(voucher.amount)}</span>
-              <Badge variant={voucher.status.toLowerCase() as any}>
-                {voucher.status.replace('_', ' ')}
-              </Badge>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-caption text-text-muted">Created</p>
-                <p className="font-mono text-text-primary">{formatDateTime(voucher.createdAt)}</p>
-              </div>
-              {voucher.submittedAt && (
-                <div>
-                  <p className="text-caption text-text-muted">Submitted</p>
-                  <p className="font-mono text-text-primary">{formatDateTime(voucher.submittedAt)}</p>
-                </div>
-              )}
-              {voucher.approvedAt && (
-                <div>
-                  <p className="text-caption text-text-muted">Approved</p>
-                  <p className="font-mono text-text-primary">{formatDateTime(voucher.approvedAt)}</p>
-                </div>
-              )}
-              {voucher.rejectedAt && (
-                <div>
-                  <p className="text-caption text-text-muted">Rejected</p>
-                  <p className="font-mono text-text-primary">{formatDateTime(voucher.rejectedAt)}</p>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          <Card>
-            <h3 className="text-h2 text-text-primary mb-4 flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Status Timeline
-            </h3>
-            <div className="relative">
-              <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border-subtle" />
-              {timelineSteps.map((step, index) => {
-                const isCompleted = step.completed
-                const isCurrent = step.key === voucher.status || (voucher.status === 'REJECTED' && step.key === 'REJECTED') || (voucher.status === 'APPROVED' && step.key === 'APPROVED')
-                const stepConfig = statusConfig[step.key as keyof typeof statusConfig]
-                const StepIcon = stepConfig?.icon || FileText
-
-                return (
-                  <div key={step.key} className="relative pl-14 pb-6 last:pb-0">
-                    <div className={cn(
-                      'absolute left-6 w-3 h-3 rounded-full border-2 flex items-center justify-center transition-all',
-                      isCompleted ? 'bg-primary border-primary' : isCurrent ? 'bg-primary/20 border-primary' : 'bg-bg-base border-border-subtle'
-                    )}>
-                      {isCompleted && <StepIcon className="h-2 w-2 text-white" />}
-                      {isCurrent && !isCompleted && <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
-                    </div>
-                    <div className={cn('ml-2 transition-colors', isCurrent ? 'text-text-primary' : 'text-text-secondary')}>
-                      <p className="font-medium">{step.label}</p>
-                      {step.date && <p className="text-caption text-text-muted">{formatDateTime(step.date)}</p>}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </Card>
+      {isDraft && (
+        <div className="mt-6 flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate('/employee/vouchers')}
+            data-print="hide"
+          >
+            Back to list
+          </Button>
         </div>
-
-        <div className="space-y-6">
-          <Card className="sticky top-24">
-            <h3 className="text-h2 text-text-primary mb-4 flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Employee Information
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary font-medium">
-                  {user.fullName.split(' ').map((n) => n[0]).join('').toUpperCase()}
-                </div>
-                <div>
-                  <p className="font-medium text-text-primary">{voucher.employee?.fullName || user.fullName}</p>
-                  <p className="text-caption text-text-muted">{voucher.employee?.employeeId || user.employeeId}</p>
-                </div>
-              </div>
-              <div className="pt-3 border-t border-border-subtle space-y-2">
-                <div className="flex items-center gap-2 text-caption">
-                  <Building2 className="h-4 w-4 text-text-muted" />
-                  <span>{voucher.employee?.department || user.department}</span>
-                </div>
-                <div className="flex items-center gap-2 text-caption">
-                  <Calendar className="h-4 w-4 text-text-muted" />
-                  <span>Created {formatDateTime(voucher.createdAt)}</span>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {voucher.employeeSignatureUrl && (
-            <Card className="sticky top-24">
-              <h3 className="text-h2 text-text-primary mb-4 flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Employee Signature
-              </h3>
-              <div className="bg-bg-base border border-border-subtle rounded-input p-4 min-h-[120px] flex items-center justify-center">
-                <img src={voucher.employeeSignatureUrl} alt="Employee signature" className="max-w-full max-h-[100px]" />
-              </div>
-              <p className="text-caption text-text-muted mt-2 text-center">Digitally signed by employee</p>
-            </Card>
-          )}
-
-          {voucher.directorSignatureUrl && (
-            <Card className="sticky top-24">
-              <h3 className="text-h2 text-text-primary mb-4 flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Director Authorization
-              </h3>
-              <div className="bg-bg-base border border-border-subtle rounded-input p-4 min-h-[120px] flex items-center justify-center">
-                <img src={voucher.directorSignatureUrl} alt="Director signature" className="max-w-full max-h-[100px]" />
-              </div>
-              <p className="text-caption text-text-muted mt-2 text-center">Authorized by {voucher.director?.fullName || 'Director'}</p>
-              {voucher.approvedAt && (
-                <p className="text-caption text-text-muted mt-1 text-center">Approved on {formatDateTime(voucher.approvedAt)}</p>
-              )}
-            </Card>
-          )}
-
-          {voucher.status === 'DRAFT' && (
-            <div className="sticky top-24">
-              <Link to={`/employee/vouchers/${voucher.id}/edit`}>
-                <Button variant="primary" className="w-full">
-                  Edit Draft
-                </Button>
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

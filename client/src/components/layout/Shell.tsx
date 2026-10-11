@@ -4,12 +4,10 @@ import { Sidebar, MobileSidebar } from './Sidebar'
 import { TopNav } from './TopNav'
 import { cn } from '@/lib/utils'
 import { ToastProvider } from '@/components/feedback/Toast'
-import { useDemoAuth } from '@/hooks/useDemoAuth'
 
 export function Shell({ children }: { children?: ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const { role } = useDemoAuth()
 
   return (
     <ToastProvider>
@@ -27,10 +25,7 @@ export function Shell({ children }: { children?: ReactNode }) {
             sidebarCollapsed={sidebarCollapsed}
           />
           <main
-            className={cn(
-              'pt-16 transition-all duration-fast min-h-screen',
-              sidebarCollapsed ? 'lg:pl-16' : 'lg:pl-64'
-            )}
+            className="pt-16 transition-all duration-fast min-h-screen"
             id="main-content"
             tabIndex={-1}
           >

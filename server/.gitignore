@@ -1,0 +1,35 @@
+# Dependencies / build output
+node_modules/
+dist/
+
+# Generated Prisma client (regenerate with: npm run prisma:generate)
+src/generated/
+
+# Local environment files - NEVER commit real secrets
+.env
+.env.*
+!.env.example
+
+# Private signature vault - must never be committed or served publicly
+storage/signatures/*
+!storage/signatures/.gitkeep
+storage/**/*.png
+storage/**/*.jpg
+storage/**/*.jpeg
+storage/**/*.webp
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test artifacts / coverage
+coverage/
+test-results/
+playwright-report/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp

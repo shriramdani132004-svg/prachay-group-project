@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/common/Button'
 import { Badge } from '@/components/common/Badge'
-import type { User, UserRole } from '@/lib/utils'
+import type { ApiUser } from '@/lib/api'
 
 interface DropdownItem {
   label: string
@@ -155,19 +155,22 @@ export function DropdownItem({ children, onClick, disabled, variant = 'default' 
 }
 
 interface UserMenuProps {
-  user: User
+  user: ApiUser
   onLogout: () => void
-  onSwitchRole?: (role: UserRole) => void
-  availableRoles?: UserRole[]
-  currentRole?: UserRole
+  /**
+   * Role switching is intentionally NOT supported. A user's role comes from the
+   * authenticated session issued by the server; changing it from the UI must
+   * never be possible.
+   */
+  currentRole?: ApiUser['role']
 }
 
-export function UserMenu({ user, onLogout, onSwitchRole, availableRoles, currentRole }: UserMenuProps) {
+export function UserMenu({ user, onLogout, currentRole }: UserMenuProps) {
   const initials = user.fullName.split(' ').map((n: string) => n[0]).join('').toUpperCase()
   return (
     <DropdownMenu
       trigger={
-        <Button variant="ghost" className="gap-2 pr-2">
+        <Button variant="ghost" className="gap-2 pr-2" aria-label={`User menu for ${user.fullName}`}>
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center font-medium text-primary text-sm">
             {initials}
           </div>
@@ -188,21 +191,7 @@ export function UserMenu({ user, onLogout, onSwitchRole, availableRoles, current
         </Badge>
       </div>
 
-      {onSwitchRole && availableRoles && availableRoles.length > 1 && (
-        <>
-          <div className="px-2 py-1 text-caption text-text-muted">Switch Role (Demo)</div>
-          {availableRoles.map((role) => (
-            <DropdownItem
-              key={role}
-              onClick={() => onSwitchRole(role)}
-              disabled={role === currentRole}
-            >
-              {role}
-            </DropdownItem>
-          ))}
-          <div className="h-px bg-border-subtle my-1" />
-        </>
-      )}
+      {/* No role switcher: the role is fixed by the authenticated session. */}
 
       <DropdownItem onClick={onLogout} variant="destructive">
         <X className="h-4 w-4" />

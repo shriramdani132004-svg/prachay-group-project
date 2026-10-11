@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/common/Button'
-import { Inbox, FileText, Search, Filter } from 'lucide-react'
+import { Inbox, FileText, Search } from 'lucide-react'
 
 interface EmptyStateProps {
   icon?: ReactNode

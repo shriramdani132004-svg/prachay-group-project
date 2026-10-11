@@ -1,0 +1,127 @@
+# Security Model — PSPL Expense Voucher Management System
+
+This document describes the threats considered and the controls implemented.
+It reflects the code as written; every claim is backed by tests listed in
+[`FINAL_ACCEPTANCE_CHECKLIST.md`](FINAL_ACCEPTANCE_CHECKLIST.md).
+
+## 1. Trust model
+
+- The **browser is untrusted**. All authorization (role, ownership, workflow
+  state) is enforced server-side; the SPA only reflects server decisions.
+- The **server is the security boundary**: Express middleware + service-layer
+  policies run before any database read or write.
+- **PostgreSQL is trusted**; network access to it must be restricted to the
+  app host (dev: `127.0.0.1:5433` only).
+
+## 2. Authentication
+
+| Control | Implementation |
+| :--- | :--- |
+| Password storage | bcrypt, cost 12 (`bcryptjs`); hashes never logged or returned |
+| Credential failures | Generic `401 Invalid email or password.` — no user enumeration |
+| Session transport | JWT (HS256, `jose`) delivered **only** via HttpOnly cookie (`pspl_session` dev; `__Host-pspl_session` + Secure in production). Never in response bodies, URLs, `localStorage` or `sessionStorage` (E2E-asserted) |
+| Session revocation | Every request checks the `auth_sessions` row (`revokedAt`, `expiresAt`). Logout / logout-all take effect immediately regardless of JWT expiry |
+| Token lifetime | `JWT_TTL_SECONDS` (default 30 min, max 24 h), mirrored by `sessions.expiresAt` |
+| Secret hygiene | `JWT_SECRET` ≥ 32 bytes required in every env; placeholder values rejected at boot in **all** environments; production additionally refuses to start on short/placeholder secrets |
+
+## 3. CSRF
+
+- Unsafe authenticated requests must carry `x-csrf-token` matching the
+  session's server-side synchronizer token (constant-time compare).
+- Login validates the `Origin` header against the CORS allowlist.
+- Cookie attributes: `HttpOnly`, `SameSite=Lax`, `Path=/`; `Secure` +
+  `__Host-` prefix in production.
+
+## 4. Authorization (RBAC)
+
+Roles: `EMPLOYEE`, `DIRECTOR`, `ACCOUNTS`.
+
+- Wrong role on a gated route → `403 FORBIDDEN`; anonymous → `401`.
+- **IDOR defense**: another user's voucher returns **404**, not 403, so
+  existence is not leaked. Integration tests assert the full ownership matrix
+  (employee cannot read/patch/delete/submit/decide on peers' vouchers;
+  director cannot edit field data; accounts cannot mutate anything).
+- Accounts is strictly read-only: no voucher or signature mutation endpoint
+  accepts the ACCOUNTS role (403 asserted in tests).
+- The Director decision endpoints check role **before** reading state.
+
+## 5. Input validation
+
+- Every request body and query is parsed with **Zod** (`strict` objects —
+  unknown keys are rejected, preventing mass-assignment of `status`,
+  `voucherNumber`, `createdById`, `reviewedById`, etc.).
+- IDs are UUID-validated; dates are ISO; amounts are decimal (server-side
+  CHECK constraint `amount > 0` in the database as the final backstop).
+- Rejection reasons: trimmed, **≥ 10 chars** (validated before the state
+  check so the rule is deterministic).
+
+## 6. File upload & signature vault
+
+| Threat | Control |
+| :--- | :--- |
+| Content spoofing (`.png` that is really HTML/JS) | MIME sniffed from **magic bytes** (`file-type`), not the client `Content-Type` |
+| Stored XSS via served file | Streamed with sniffed `Content-Type` + `X-Content-Type-Options: nosniff` |
+| Path traversal | Storage keys are **server-generated** (`aa/bb/<uuid>.png`); client filenames are never used |
+| Oversized uploads | Multer memory limit (default 2 MiB) → 413; extra file fields → 400 |
+| Unauthorized read | `GET /signatures/:id` requires authentication + ownership/role before any byte is streamed; `storageKey` is never exposed in API responses |
+| Orphaned / stale bytes | DB metadata row + file written transactionally; re-upload replaces and deletes the old object |
+
+## 7. Transport & headers
+
+- **Helmet** security headers on every response.
+- Strict **CORS allowlist** — `*` is rejected by the environment schema
+  because credentialed requests require explicit origins.
+- Production deployments must terminate TLS (enforced by `__Host-` cookies).
+
+## 8. Rate limiting
+
+- Per-IP **login** limiter (`RATE_LIMIT_LOGIN_MAX`, default 10/window) →
+  429 `RATE_LIMITED`.
+- Baseline **API** limiter (`RATE_LIMIT_API_MAX`, default 300/window).
+- `TRUST_PROXY_HOPS` must be set correctly behind a proxy so limits key on
+  the real client IP, not the load balancer.
+
+## 9. Logging & information disclosure
+
+- **Pino** structured logs with credential redaction (passwords, tokens,
+  cookies never written).
+- Zod environment errors echo the **variable name**, never the value.
+- API error messages are user-safe; stack traces are not returned to clients.
+- Demo password provisioning never prints passwords or hashes.
+
+## 10. Data integrity
+
+- Monetary values are `NUMERIC(12,2)` end to end — **no floating point**.
+- Voucher numbers are generated by a **database sequence** with a unique
+  constraint (collision-safe under concurrency).
+- Workflow transitions use **conditional updates** (`WHERE status = …`) so
+  two simultaneous Director decisions resolve to exactly one winner.
+- `voucher_events` is append-only; employee snapshots keep history readable.
+- `prisma migrate reset` / destructive commands are prohibited in runbooks.
+
+## 11. Dependency hygiene
+
+- `npm audit` reports **0 vulnerabilities** in both `server/` and `client/`
+  (verified at final acceptance).
+- `overrides` pin `mysql2` ≥ 3.24.5 and `deepmerge-ts` ≥ 8.0.2 to pull
+  patched transitive versions.
+- No root-level `package.json` — the two workspaces are installed and audited
+  independently.
+
+## 12. Secrets management
+
+- `.env` is gitignored; `.env.example` files contain placeholders only.
+- The local demo-credential note file is explicitly gitignored
+  (`login credentials to login.txt`, `*credentials*.txt`, `*.pem`, `*.key`).
+- Hosting manifests (`server/render.yaml`) reference env var **names** only.
+- **Demo passwords are development-only**; they must be rotated before any
+  shared demo and never reused for real accounts.
+
+## 13. Residual risks (accepted & documented)
+
+| Risk | Notes |
+| :--- | :--- |
+| Local filesystem vault | Fine for single-instance deployment with a persistent disk; multi-instance hosts should move to object storage (interface-localized change) |
+| Demo passwords may have been shared during development | Rotate before any public demo; production accounts must be provisioned independently |
+| E2E suite mocks the API | Browser↔real-API paths are covered by backend integration tests + manual verification, not the Playwright suite |
+| No email/2FA/password-reset | Out of scope for this delivery |

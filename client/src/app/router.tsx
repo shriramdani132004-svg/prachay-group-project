@@ -1,6 +1,7 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { Shell } from '@/components/layout/Shell'
 import { PublicLayout } from '@/components/layout/Shell'
+import { RequireAuth, RedirectIfAuthenticated } from '@/components/auth/RouteGuards'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { EmployeeDashboard } from '@/features/employee/EmployeeDashboard'
 import { MyVouchers } from '@/features/employee/MyVouchers'
@@ -14,58 +15,124 @@ import { VoucherRegister } from '@/features/accounts/VoucherRegister'
 import { AccountsVoucherDetail } from '@/features/accounts/VoucherDetail'
 import { NotFound } from '@/features/NotFound'
 
+/**
+ * Route table (Phase 4).
+ *
+ * Protected routes declare the roles permitted to view them. The backend
+ * enforces the same rules independently - this only shapes the UI.
+ */
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <Shell />,
     children: [
       {
-        path: 'login',
-        element: <PublicLayout><LoginPage onDemoLogin={() => {}} /></PublicLayout>,
+        index: true,
+        element: <Navigate to="/login" replace />,
       },
       {
+        path: 'login',
+        element: (
+          <PublicLayout>
+            <RedirectIfAuthenticated>
+              <LoginPage />
+            </RedirectIfAuthenticated>
+          </PublicLayout>
+        ),
+      },
+
+      // --- Employee ---------------------------------------------------------
+      {
         path: 'employee',
-        element: <EmployeeDashboard />,
+        element: (
+          <RequireAuth allowedRoles={['EMPLOYEE']}>
+            <EmployeeDashboard />
+          </RequireAuth>
+        ),
       },
       {
         path: 'employee/vouchers',
-        element: <MyVouchers />,
+        element: (
+          <RequireAuth allowedRoles={['EMPLOYEE']}>
+            <MyVouchers />
+          </RequireAuth>
+        ),
       },
       {
         path: 'employee/vouchers/new',
-        element: <CreateVoucher />,
+        element: (
+          <RequireAuth allowedRoles={['EMPLOYEE']}>
+            <CreateVoucher />
+          </RequireAuth>
+        ),
       },
       {
         path: 'employee/vouchers/:id/edit',
-        element: <CreateVoucher isEdit />,
+        element: (
+          <RequireAuth allowedRoles={['EMPLOYEE']}>
+            <CreateVoucher isEdit />
+          </RequireAuth>
+        ),
       },
       {
         path: 'employee/vouchers/:id',
-        element: <EmployeeVoucherDetail />,
+        element: (
+          <RequireAuth allowedRoles={['EMPLOYEE']}>
+            <EmployeeVoucherDetail />
+          </RequireAuth>
+        ),
       },
+
+      // --- Director ---------------------------------------------------------
       {
         path: 'director',
-        element: <DirectorDashboard />,
+        element: (
+          <RequireAuth allowedRoles={['DIRECTOR']}>
+            <DirectorDashboard />
+          </RequireAuth>
+        ),
       },
       {
         path: 'director/approvals',
-        element: <ApprovalQueue />,
+        element: (
+          <RequireAuth allowedRoles={['DIRECTOR']}>
+            <ApprovalQueue />
+          </RequireAuth>
+        ),
       },
       {
         path: 'director/vouchers/:id',
-        element: <VoucherReview />,
+        element: (
+          <RequireAuth allowedRoles={['DIRECTOR']}>
+            <VoucherReview />
+          </RequireAuth>
+        ),
       },
+
+      // --- Accounts ---------------------------------------------------------
       {
         path: 'accounts',
-        element: <AccountsDashboard />,
+        element: (
+          <RequireAuth allowedRoles={['ACCOUNTS']}>
+            <AccountsDashboard />
+          </RequireAuth>
+        ),
       },
       {
         path: 'accounts/vouchers',
-        element: <VoucherRegister />,
+        element: (
+          <RequireAuth allowedRoles={['ACCOUNTS']}>
+            <VoucherRegister />
+          </RequireAuth>
+        ),
       },
       {
         path: 'accounts/vouchers/:id',
-        element: <AccountsVoucherDetail />,
+        element: (
+          <RequireAuth allowedRoles={['ACCOUNTS']}>
+            <AccountsVoucherDetail />
+          </RequireAuth>
+        ),
       },
     ],
   },

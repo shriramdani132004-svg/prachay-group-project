@@ -1,0 +1,38 @@
+# Development database for the PSPL Expense Voucher Management System.
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up -d
+#   docker compose -f docker-compose.dev.yml down -v   # wipe data
+#
+# The application ALWAYS expects PostgreSQL on 127.0.0.1:5433 (never 5432 —
+# that port is reserved for any other local Postgres instance). Credentials
+# below are for LOCAL DEVELOPMENT ONLY; production must use a managed
+# database with secrets injected via the hosting provider's environment.
+#
+# The postgres password is intentionally non-production and can be overridden
+# without editing this file:
+#   POSTGRES_PASSWORD=mydevpass docker compose -f docker-compose.dev.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pspl-voucher-dev-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pspl_voucher_dev
+      POSTGRES_USER: pspl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pspl_dev_only}
+    ports:
+      # Host 5433 -> container 5432. The project's dev DATABASE_URL targets
+      # 127.0.0.1:5433, so this mapping is the contract.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pspl_dev_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pspl -d pspl_voucher_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  pspl_dev_pgdata:

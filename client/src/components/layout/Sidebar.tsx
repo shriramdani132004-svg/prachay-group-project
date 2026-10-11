@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import {
@@ -7,20 +7,15 @@ import {
   PlusCircle,
   History,
   Inbox,
-  Clock,
   BarChart3,
   Settings,
   ChevronLeft,
   ChevronRight,
-  Menu,
   X,
-  User,
   Shield,
-  DollarSign,
-  TrendingUp,
 } from 'lucide-react'
-import { NavLink, useLocation } from 'react-router-dom'
-import { useDemoAuth } from '@/hooks/useDemoAuth'
+import { NavLink } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
 
 interface NavItem {
   label: string
@@ -53,14 +48,13 @@ const roleNavigation: Record<string, NavItem[]> = {
 import { CheckCircle } from 'lucide-react'
 
 export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
-  const { role } = useDemoAuth()
-  const location = useLocation()
+  const role = useAuth()?.user?.role ?? 'EMPLOYEE'
   const navItems = roleNavigation[role] || roleNavigation.EMPLOYEE
 
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen bg-bg-surface border-r border-border-subtle transition-all duration-fast flex flex-col',
+        'fixed left-0 top-0 z-40 h-screen bg-bg-surface border-r border-border-subtle transition-all duration-fast hidden lg:flex lg:flex-col',
         collapsed ? 'w-16' : 'w-64'
       )}
       aria-label="Main navigation"
@@ -138,7 +132,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 }
 
 export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { role } = useDemoAuth()
+  const role = useAuth()?.user?.role ?? 'EMPLOYEE'
   const navItems = roleNavigation[role] || roleNavigation.EMPLOYEE
 
   return (

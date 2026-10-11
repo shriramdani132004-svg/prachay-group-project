@@ -10,14 +10,11 @@ import {
   Menu,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useDemoAuth } from '@/hooks/useDemoAuth'
+import { useAuth } from '@/hooks/useAuth'
 import { UserMenu } from '@/components/overlays/Dropdown'
-import { Button } from '@/components/common/Button'
-import { Modal } from '@/components/overlays/Modal'
-import type { UserRole } from '@/lib/utils'
 
 export function TopNav({ onMenuClick, sidebarCollapsed }: { onMenuClick: () => void; sidebarCollapsed: boolean }) {
-  const { role, user, switchRole, logout } = useDemoAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -44,25 +41,28 @@ export function TopNav({ onMenuClick, sidebarCollapsed }: { onMenuClick: () => v
     }
   }, [searchOpen])
 
-  const demoRoles: UserRole[] = ['EMPLOYEE', 'DIRECTOR', 'ACCOUNTS']
-  const rolePaths: Record<UserRole, string> = {
-    EMPLOYEE: '/employee',
-    DIRECTOR: '/director',
-    ACCOUNTS: '/accounts',
-  }
-
-  const handleRoleSwitch = (newRole: UserRole) => {
-    switchRole(newRole)
-    navigate(rolePaths[newRole])
+  /**
+   * Signs out via the API.
+   *
+   * The Phase 2 role switcher is intentionally removed: switching a role in the
+   * UI must never grant authentication or change permissions. Only a real
+   * server session determines the role.
+   */
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch {
+      // The AuthProvider always clears local state, even on failure.
+    }
+    navigate('/login', { replace: true })
   }
 
   return (
     <header
       className={cn(
-        'fixed top-0 right-0 z-30 h-16 bg-bg-surface/80 backdrop-blur-card border-b border-border-subtle transition-all duration-fast flex items-center',
-        sidebarCollapsed ? 'left-16' : 'left-64'
+        'fixed top-0 z-30 h-16 bg-bg-surface/80 backdrop-blur-card border-b border-border-subtle transition-all duration-fast flex items-center left-0 w-full',
+        sidebarCollapsed ? 'lg:left-16 lg:w-[calc(100vw-4rem)]' : 'lg:left-64 lg:w-[calc(100vw-16rem)]'
       )}
-      style={{ width: `calc(100% - ${sidebarCollapsed ? '64px' : '256px'})` }}
     >
       <div className="flex items-center justify-between w-full px-4 lg:px-6 gap-4">
         <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -191,13 +191,13 @@ export function TopNav({ onMenuClick, sidebarCollapsed }: { onMenuClick: () => v
             </AnimatePresence>
           </div>
 
-          <UserMenu
-            user={user}
-            onLogout={logout}
-            onSwitchRole={handleRoleSwitch}
-            availableRoles={demoRoles}
-            currentRole={role}
-          />
+          {/*
+           * Only rendered for an authenticated user. The user menu is omitted
+           * entirely when anonymous, since there is no identity to display.
+           */}
+          {user && (
+            <UserMenu user={user} onLogout={handleLogout} currentRole={user.role} />
+          )}
         </div>
       </div>
     </header>

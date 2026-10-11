@@ -3,6 +3,13 @@
 .env
 .env.*
 !.env.example
+
+# Local credential notes (NEVER commit)
+login credentials to login.txt
+*credentials*.txt
+*.pem
+*.key
+
 # Dependencies and generated output
 node_modules/
 dist/

@@ -1,9 +1,15 @@
 import { type HTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
-import { getStatusColor } from '@/lib/utils'
 
 interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
-  variant?: 'default' | 'draft' | 'submitted' | 'pending' | 'approved' | 'rejected'
+  variant?:
+    | 'default'
+    | 'draft'
+    | 'submitted'
+    | 'pending'
+    | 'pending_approval'
+    | 'approved'
+    | 'rejected'
   dot?: boolean
 }
 
@@ -13,6 +19,7 @@ export const Badge = ({ className, variant = 'default', dot = true, children, ..
     draft: 'badge-draft',
     submitted: 'badge-submitted',
     pending: 'badge-pending',
+    pending_approval: 'badge-pending',
     approved: 'badge-approved',
     rejected: 'badge-rejected',
   }
